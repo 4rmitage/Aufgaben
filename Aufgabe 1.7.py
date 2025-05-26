@@ -25,6 +25,6 @@ print(f"Innenfarbe: {farbe_innen}")
 farbe, farbe_innen = farbe_innen, farbe
 
 # Ausgabe nach dem Tausch
-print("\nNach dem Tausch:")
+print("Nach dem Tausch:")
 print(f"Farbe: {farbe}")
 print(f"Innenfarbe: {farbe_innen}")
