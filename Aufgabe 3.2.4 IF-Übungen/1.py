@@ -8,3 +8,4 @@ if wieder_multipliziert == zahl:
     print("Die Zahl ist gerade.")
 else:
     print("Die Zahl ist ungerade.")
+    
