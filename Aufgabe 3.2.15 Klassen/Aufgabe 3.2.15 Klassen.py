@@ -22,7 +22,7 @@ class BankAccount:
     def zeige_kontostand(self):
         print(f"Der aktuelle Kontostand von {self.kontoinhaber} beträgt {self.kontostand}€.")
 
-# Beispiel: Nutzung der Klasse mit Eingaben
+# Eingaben in Klasse
 def main():
     kontoinhaber = input("Bitte geben Sie den Namen des Kontoinhabers ein: ")
     konto = BankAccount(kontoinhaber)
