@@ -1,4 +1,4 @@
-ort tkinter as tk
+import tkinter as tk
 
 # Erstelle das Hauptfenster
 root = tk.Tk()
