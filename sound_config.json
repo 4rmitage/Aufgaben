@@ -1,0 +1,52 @@
+{
+  "0": {
+    "sound": "C:/Windows/Media/Windows Balloon.wav",
+    "volume": 1.0,
+    "loop": false
+  },
+  "1": {
+    "sound": "C:/Windows/Media/Speech Disambiguation.wav",
+    "volume": 1.0,
+    "loop": false
+  },
+  "2": {
+    "sound": "C:/Windows/Media/Speech On.wav",
+    "volume": 1.0,
+    "loop": false
+  },
+  "3": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  },
+  "4": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  },
+  "5": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  },
+  "6": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  },
+  "7": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  },
+  "8": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  },
+  "9": {
+    "sound": "",
+    "volume": 1.0,
+    "loop": false
+  }
+}
