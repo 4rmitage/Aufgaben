@@ -17,17 +17,17 @@ class SoundButton:
         self.sound = None
 
         self.button = tk.Button(master, text=f"Button {index+1}", width=20)
-        self.button.grid(row=index, column=0, padx=5, pady=5)
+        self.button.grid(row=index, column=0, padx=5, pady=5, sticky="nsew")  # <-- sticky hinzugefügt
         self.button.bind("<Button-1>", self.toggle_play)
         self.button.bind("<Button-3>", self.choose_sound)
 
         self.scale = tk.Scale(master, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL, label="Lautstärke", command=self.update_volume)
         self.scale.set(self.volume)
-        self.scale.grid(row=index, column=1, padx=5, pady=5)
+        self.scale.grid(row=index, column=1, padx=5, pady=5, sticky="nsew")  # <-- sticky hinzugefügt
 
         self.loop_var = tk.BooleanVar(value=self.loop_enabled)
         self.loop_checkbox = tk.Checkbutton(master, text="Loop", variable=self.loop_var)
-        self.loop_checkbox.grid(row=index, column=2, padx=5, pady=5)
+        self.loop_checkbox.grid(row=index, column=2, padx=5, pady=5, sticky="nsew")  # <-- sticky hinzugefügt
 
     def toggle_play(self, event=None):
         if not self.sound_path:
@@ -82,7 +82,14 @@ class SoundApp:
             self.sound_buttons.append(btn)
 
         self.quit_button = tk.Button(root, text="Beenden", command=self.quit)
-        self.quit_button.grid(row=10, column=0, columnspan=3, pady=10)
+        self.quit_button.grid(row=10, column=0, columnspan=3, pady=10, sticky="nsew")  # <-- sticky hinzugefügt
+
+        # Grid-Konfiguration für Skalierung:
+        for i in range(10):
+            root.rowconfigure(i, weight=1)
+        root.rowconfigure(10, weight=1)
+        for j in range(3):
+            root.columnconfigure(j, weight=1)
 
         self.update_volume_loop()
 
