@@ -16,10 +16,10 @@ class SoundButton:
         self.channel = None
 
         self.frame = tk.Frame(master, bd=1, relief="solid")
-        self.frame.grid(row=index//5, column=index%5, sticky="nsew", padx=2, pady=2)
+        self.frame.grid(row=index // 5, column=index % 5, sticky="nsew", padx=2, pady=2)
         self.frame.bind("<Configure>", self._resize_font)
 
-        self.button = tk.Button(self.frame, text=str(index+1), command=self.toggle_play)
+        self.button = tk.Button(self.frame, text=str(index + 1), command=self.toggle_play)
         self.button.pack(expand=True, fill="both")
         self.button.bind("<Button-3>", self.choose_file)
 
@@ -31,7 +31,7 @@ class SoundButton:
         self.scale.pack(fill="x")
 
     def _resize_font(self, event):
-        size = min(event.width, event.height) // 5
+        size = max(min(event.width, event.height) // 5, 8)
         self.button.config(font=("Arial", size))
 
     def choose_file(self, event):
@@ -61,6 +61,7 @@ class SoundButton:
     def get_config(self):
         return {"sound": self.path, "volume": self.scale.get(), "loop": self.loop.get()}
 
+
 class SoundBoardApp:
     def __init__(self, root, username):
         self.root = root
@@ -69,24 +70,39 @@ class SoundBoardApp:
 
         pygame.mixer.init()
 
+        # Hintergrundbild-Label
         self.background = tk.Label(self.root)
         self.background.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.root.bind("<Configure>", self._resize_bg)
 
-        self.bg_img = Image.open("assets/background.jpg")
+        # Pfad zum Hintergrundbild dynamisch bestimmen
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        img_path = os.path.join(script_dir, "assets", "background.jpg")
+        try:
+            self.bg_img = Image.open(img_path)
+        except Exception as e:
+            print(f"Fehler beim Laden des Hintergrundbilds: {e}")
+            self.bg_img = None
+
         self._resize_bg()
 
-        self.buttons = []
-        self.grid = tk.Frame(self.root)
+        # Grid Frame für Buttons
+        self.grid = tk.Frame(self.root, bg="")
         self.grid.pack(expand=True, fill="both")
+        for i in range(3):
+            self.grid.rowconfigure(i, weight=1)
+        for j in range(5):
+            self.grid.columnconfigure(j, weight=1)
 
+        # Buttons laden aus Profil
         profile = load_profile(username)
-
+        self.buttons = []
         for i in range(15):
             conf = profile.get(str(i), {})
             btn = SoundButton(self.grid, i, conf)
             self.buttons.append(btn)
 
+        # Steuer-Buttons (unten, mittig)
         control = tk.Frame(self.root)
         control.pack(pady=10)
 
@@ -96,7 +112,13 @@ class SoundBoardApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def _resize_bg(self, event=None):
-        img = self.bg_img.resize((self.root.winfo_width(), self.root.winfo_height()))
+        if not self.bg_img:
+            return
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        if width < 1 or height < 1:
+            return
+        img = self.bg_img.resize((width, height), Image.LANCZOS)
         self.tk_img = ImageTk.PhotoImage(img)
         self.background.config(image=self.tk_img)
 
