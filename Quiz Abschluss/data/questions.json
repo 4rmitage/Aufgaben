@@ -1,0 +1,92 @@
+[
+  {
+    "question": "Was ist PowerShell?",
+    "options": ["Ein Browser", "Ein Terminal-Emulator", "Ein Kommandozeilen- und Skriptwerkzeug", "Ein Texteditor"],
+    "answer": "Ein Kommandozeilen- und Skriptwerkzeug",
+    "difficulty": "einfach"
+  },
+  {
+    "question": "Was macht der Befehl 'Get-Process' in PowerShell?",
+    "options": ["Startet einen Prozess", "Zeigt aktive Prozesse an", "Beendet Prozesse", "Listet Benutzer auf"],
+    "answer": "Zeigt aktive Prozesse an",
+    "difficulty": "einfach"
+  },
+  {
+    "question": "Wofür steht 'VM'?",
+    "options": ["Virtuelles Modul", "Virtuelle Maschine", "Visual Memory", "Virtueller Manager"],
+    "answer": "Virtuelle Maschine",
+    "difficulty": "einfach"
+  },
+  {
+    "question": "Welche Hypervisor-Typen gibt es?",
+    "options": ["Typ A und B", "Typ 1 und Typ 2", "Statisch und Dynamisch", "Remote und Lokal"],
+    "answer": "Typ 1 und Typ 2",
+    "difficulty": "mittel"
+  },
+  {
+    "question": "Welche Sprache verwendet PowerShell hauptsächlich?",
+    "options": ["C#", "Bash", "Eigene Shell-Sprache", "Python"],
+    "answer": "Eigene Shell-Sprache",
+    "difficulty": "mittel"
+  },
+  {
+    "question": "Was beschreibt ein Snapshot bei VMs?",
+    "options": ["Backup des Hostsystems", "Live-Zustand der VM zu einem Zeitpunkt", "Installationsmedium", "Firewall-Einstellung"],
+    "answer": "Live-Zustand der VM zu einem Zeitpunkt",
+    "difficulty": "mittel"
+  },
+  {
+    "question": "Was versteht man unter Automatisierung in der IT?",
+    "options": ["Manuelle Aufgabenreihenfolge", "Automatische Ausführung von Abläufen", "Live-Monitoring", "Hardware-Tuning"],
+    "answer": "Automatische Ausführung von Abläufen",
+    "difficulty": "einfach"
+  },
+  {
+    "question": "Was ist Vagrant?",
+    "options": ["Container-Plattform", "Tool zur VM-Verwaltung", "Cloud-Anbieter", "PowerShell-Plugin"],
+    "answer": "Tool zur VM-Verwaltung",
+    "difficulty": "schwer"
+  },
+  {
+    "question": "Was ist Hyper-V?",
+    "options": ["Ein Betriebssystem", "Ein Hypervisor von Microsoft", "Ein Antivirus", "Ein VM-Treiber"],
+    "answer": "Ein Hypervisor von Microsoft",
+    "difficulty": "mittel"
+  },
+  {
+    "question": "Welcher Befehl erzeugt eine neue Datei in PowerShell?",
+    "options": ["touch", "create", "New-Item", "mkfile"],
+    "answer": "New-Item",
+    "difficulty": "mittel"
+  },
+  {
+    "question": "Welche Vorteile bietet Automatisierung?",
+    "options": ["Höhere Fehlerquote", "Mehr manuelle Arbeit", "Zeiteinsparung", "Geringere Kontrolle"],
+    "answer": "Zeiteinsparung",
+    "difficulty": "einfach"
+  },
+  {
+    "question": "Wie lassen sich VMs am besten skalieren?",
+    "options": ["Über Festplattenerweiterung", "Durch Netzwerktools", "Durch Cloud-Autoscaling", "Mit BIOS-Updates"],
+    "answer": "Durch Cloud-Autoscaling",
+    "difficulty": "schwer"
+  },
+  {
+    "question": "Was ist Infrastructure as Code (IaC)?",
+    "options": ["Papierbasierte Netzpläne", "Cloud-Sicherheit", "Code zur Beschreibung von IT-Infrastruktur", "Ein DevOps-Rahmenwerk"],
+    "answer": "Code zur Beschreibung von IT-Infrastruktur",
+    "difficulty": "schwer"
+  },
+  {
+    "question": "Was kann man mit 'Set-ExecutionPolicy' in PowerShell tun?",
+    "options": ["Dateien löschen", "Netzwerkeinstellungen ändern", "Skriptausführung regeln", "VMs verwalten"],
+    "answer": "Skriptausführung regeln",
+    "difficulty": "schwer"
+  },
+  {
+    "question": "Wie heißt ein weit verbreitetes Automatisierungstool?",
+    "options": ["Ansible", "Firefox", "VMware", "OpenVPN"],
+    "answer": "Ansible",
+    "difficulty": "mittel"
+  }
+]
