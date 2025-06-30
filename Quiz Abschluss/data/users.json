@@ -6,7 +6,12 @@
     },
     "Ivan": {
         "password": "123456",
-        "last_score": 3,
-        "feedback": "Du hast dich verschlechtert \u2013 probier\u2019s nochmal!"
+        "last_score": 5,
+        "feedback": "Gut gemacht! Du hast dich verbessert."
+    },
+    "Hallo": {
+        "password": "123456",
+        "last_score": 1,
+        "feedback": "Erstes Ergebnis gespeichert."
     }
 }
