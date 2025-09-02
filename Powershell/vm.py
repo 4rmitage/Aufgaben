@@ -1,73 +1,102 @@
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import filedialog
 import subprocess
 
-class VMCreator:
+class HyperVVMCreator:
     def __init__(self, root):
         self.root = root
-        self.root.title("Hyper-V VM Creator")
+        self.root.title("Hyper-V VM Ersteller")
         self.root.geometry("400x400")
+        
+        # Name der VM
+        self.vm_name_label = tk.Label(root, text="VM Name:")
+        self.vm_name_label.pack(pady=5)
+        self.vm_name_entry = tk.Entry(root)
+        self.vm_name_entry.pack(pady=5)
 
-        # UI Elemente für VM-Einstellungen
-        self.create_widgets()
+        # CPU Anzahl
+        self.cpu_label = tk.Label(root, text="Anzahl CPUs:")
+        self.cpu_label.pack(pady=5)
+        self.cpu_entry = tk.Entry(root)
+        self.cpu_entry.pack(pady=5)
 
-    def create_widgets(self):
-        # VM Name
-        self.label_name = tk.Label(self.root, text="VM Name:")
-        self.label_name.pack(pady=5)
-        self.entry_name = tk.Entry(self.root)
-        self.entry_name.pack(pady=5)
+        # RAM Größe
+        self.ram_label = tk.Label(root, text="RAM (MB):")
+        self.ram_label.pack(pady=5)
+        self.ram_entry = tk.Entry(root)
+        self.ram_entry.pack(pady=5)
 
-        # Arbeitsspeicher (in GB)
-        self.label_memory = tk.Label(self.root, text="Memory Size (in GB):")
-        self.label_memory.pack(pady=5)
-        self.entry_memory = tk.Entry(self.root)
-        self.entry_memory.pack(pady=5)
+        # Festplatte Pfad Auswahl
+        self.disk_label = tk.Label(root, text="Festplatte (Pfad zur VHD):")
+        self.disk_label.pack(pady=5)
+        self.disk_button = tk.Button(root, text="VHD auswählen", command=self.select_disk_path)
+        self.disk_button.pack(pady=5)
+        self.disk_path_label = tk.Label(root, text="Kein Pfad ausgewählt")
+        self.disk_path_label.pack(pady=5)
 
-        # Anzahl der CPUs
-        self.label_cpu = tk.Label(self.root, text="Number of CPUs:")
-        self.label_cpu.pack(pady=5)
-        self.entry_cpu = tk.Entry(self.root)
-        self.entry_cpu.pack(pady=5)
+        # Betriebssystem ISO Auswahl
+        self.iso_label = tk.Label(root, text="Betriebssystem ISO (Pfad):")
+        self.iso_label.pack(pady=5)
+        self.iso_button = tk.Button(root, text="ISO auswählen", command=self.select_iso_path)
+        self.iso_button.pack(pady=5)
+        self.iso_path_label = tk.Label(root, text="Kein Pfad ausgewählt")
+        self.iso_path_label.pack(pady=5)
 
-        # Button für VM-Erstellung
-        self.button_create = tk.Button(self.root, text="Create VM", command=self.create_vm)
-        self.button_create.pack(pady=20)
+        # VM erstellen Button
+        self.create_button = tk.Button(root, text="VM Erstellen", command=self.create_vm)
+        self.create_button.pack(pady=20)
+
+        # Pfade speichern
+        self.disk_path = ""
+        self.iso_path = ""
+
+    def select_disk_path(self):
+        # Datei-Dialog für Festplatten-Pfad (VHD)
+        self.disk_path = filedialog.asksaveasfilename(defaultextension=".vhd", filetypes=[("VHD Dateien", "*.vhd")])
+        if self.disk_path:
+            self.disk_path_label.config(text=self.disk_path)
+
+    def select_iso_path(self):
+        # Datei-Dialog für ISO-Dateipfad
+        self.iso_path = filedialog.askopenfilename(filetypes=[("ISO Dateien", "*.iso")])
+        if self.iso_path:
+            self.iso_path_label.config(text=self.iso_path)
 
     def create_vm(self):
-        # Eingabewerte abfragen
-        vm_name = self.entry_name.get()
-        memory_size = self.entry_memory.get()
-        cpu_count = self.entry_cpu.get()
+        vm_name = self.vm_name_entry.get()
+        cpu_count = self.cpu_entry.get()
+        ram_size = self.ram_entry.get()
 
-        # Überprüfen, ob alle Eingabefelder ausgefüllt sind und gültig sind
-        if not vm_name or not memory_size or not cpu_count:
-            messagebox.showerror("Input Error", "Please fill in all fields.")
+        # Überprüfen, ob alle Felder ausgefüllt sind
+        if not vm_name or not cpu_count or not ram_size or not self.disk_path or not self.iso_path:
+            messagebox.showerror("Fehler", "Bitte fülle alle Felder aus und wähle alle Pfade aus!")
             return
 
-        try:
-            memory_size = int(memory_size)  # Speicher in Integer umwandeln
-            cpu_count = int(cpu_count)  # CPU Anzahl in Integer umwandeln
-        except ValueError:
-            messagebox.showerror("Input Error", "Memory and CPU count must be integers.")
-            return
+        # PowerShell Befehl zum Erstellen der VM
+        ps_script = f"""
+        New-VM -Name '{vm_name}' -MemoryStartupBytes {int(ram_size) * 1024 * 1024} -Generation 2 -Path 'C:\\VMs\\'
+        Set-VMProcessor -VMName '{vm_name}' -Count {cpu_count}
+        New-VHD -Path '{self.disk_path}' -SizeBytes 40GB -Dynamic
+        Add-VMHardDiskDrive -VMName '{vm_name}' -Path '{self.disk_path}'
+        Set-VMDVDDrive -VMName '{vm_name}' -Path '{self.iso_path}'
+        Start-VM -Name '{vm_name}'
+        """
 
-        # PowerShell-Skript zur VM-Erstellung
-        powershell_script = f'''
-        New-VM -Name "{vm_name}" -MemoryStartupBytes {memory_size}GB -NewVHDPath "C:\\VMs\\{vm_name}.vhdx" -NewVHDSizeBytes 60GB
-        Set-VM -Name "{vm_name}" -ProcessorCount {cpu_count}
-        Set-VM -Name "{vm_name}" -BootDevice CD
-        '''
-
-        # PowerShell-Befehl ausführen
         try:
-            subprocess.run(["powershell", "-Command", powershell_script], check=True)
-            messagebox.showinfo("VM Created", f"VM '{vm_name}' created successfully!")
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("Error", f"Error creating VM: {e}")
-        
-# Main Function
+            # Ausführen des PowerShell-Skripts
+            result = subprocess.run(["powershell", "-Command", ps_script], capture_output=True, text=True)
+
+            # Überprüfen, ob der Befehl erfolgreich war
+            if result.returncode == 0:
+                messagebox.showinfo("Erfolg", f"VM '{vm_name}' wurde erfolgreich erstellt!")
+            else:
+                messagebox.showerror("Fehler", f"Fehler beim Erstellen der VM: {result.stderr}")
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Es gab ein Problem bei der Ausführung: {str(e)}")
+
+# Tkinter Fenster erstellen und starten
 if __name__ == "__main__":
     root = tk.Tk()
-    app = VMCreator(root)
+    app = HyperVVMCreator(root)
     root.mainloop()
