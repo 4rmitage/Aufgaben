@@ -7,7 +7,7 @@ class HyperVVMCreator:
     def __init__(self, root):
         self.root = root
         self.root.title("Hyper-V VM Ersteller")
-        self.root.geometry("400x400")
+        self.root.geometry("400x450")
         
         # Name der VM
         self.vm_name_label = tk.Label(root, text="VM Name:")
