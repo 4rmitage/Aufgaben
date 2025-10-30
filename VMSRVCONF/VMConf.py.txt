@@ -1,0 +1,727 @@
+import sys
+import subprocess
+import os
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                             QHBoxLayout, QPushButton, QLabel, QLineEdit, 
+                             QSpinBox, QCheckBox, QFileDialog, QTextEdit, 
+                             QTabWidget, QGroupBox, QComboBox, QTableWidget,
+                             QTableWidgetItem, QMessageBox, QProgressBar)
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QFont
+import json
+
+
+class PowerShellWorker(QThread):
+    """Worker Thread für PowerShell-Befehle"""
+    output_signal = pyqtSignal(str)
+    error_signal = pyqtSignal(str)
+    finished_signal = pyqtSignal(bool)
+    
+    def __init__(self, script):
+        super().__init__()
+        self.script = script
+    
+    def run(self):
+        try:
+            result = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", self.script],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            
+            if result.stdout:
+                self.output_signal.emit(result.stdout)
+            
+            if result.returncode == 0:
+                self.finished_signal.emit(True)
+            else:
+                self.error_signal.emit(result.stderr if result.stderr else "Unbekannter Fehler")
+                self.finished_signal.emit(False)
+                
+        except Exception as e:
+            self.error_signal.emit(str(e))
+            self.finished_signal.emit(False)
+
+
+class HyperVManager(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.vm_name = ""
+        self.setWindowTitle("Hyper-V VM Manager mit Active Directory")
+        self.setGeometry(100, 100, 900, 700)
+        
+        # Hauptwidget
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        layout = QVBoxLayout(main_widget)
+        
+        # Tab Widget
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+        
+        # Tabs erstellen
+        self.create_vm_tab()
+        self.create_post_install_tab()
+        self.create_ad_users_tab()
+        self.create_ad_ou_tab()
+        self.create_ad_groups_tab()
+        
+        # Statusbereich
+        self.status_text = QTextEdit()
+        self.status_text.setReadOnly(True)
+        self.status_text.setMaximumHeight(150)
+        layout.addWidget(QLabel("Status:"))
+        layout.addWidget(self.status_text)
+        
+    def create_vm_tab(self):
+        """Tab für VM-Erstellung"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # VM-Grundeinstellungen
+        vm_group = QGroupBox("VM-Einstellungen")
+        vm_layout = QVBoxLayout()
+        
+        # VM-Name
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("VM-Name:"))
+        self.vm_name_input = QLineEdit()
+        self.vm_name_input.setPlaceholderText("z.B. Windows-Server-2025")
+        name_layout.addWidget(self.vm_name_input)
+        vm_layout.addLayout(name_layout)
+        
+        # Arbeitsspeicher
+        ram_layout = QHBoxLayout()
+        ram_layout.addWidget(QLabel("Arbeitsspeicher (GB):"))
+        self.ram_input = QSpinBox()
+        self.ram_input.setMinimum(1)
+        self.ram_input.setMaximum(128)
+        self.ram_input.setValue(4)
+        ram_layout.addWidget(self.ram_input)
+        ram_layout.addStretch()
+        vm_layout.addLayout(ram_layout)
+        
+        # Speicherort
+        path_layout = QHBoxLayout()
+        path_layout.addWidget(QLabel("Speicherort:"))
+        self.path_input = QLineEdit()
+        self.path_input.setText("C:\\Hyper-V\\VMs")
+        path_layout.addWidget(self.path_input)
+        browse_path_btn = QPushButton("Durchsuchen")
+        browse_path_btn.clicked.connect(self.browse_vm_path)
+        path_layout.addWidget(browse_path_btn)
+        vm_layout.addLayout(path_layout)
+        
+        # VHDX-Größe
+        vhdx_layout = QHBoxLayout()
+        vhdx_layout.addWidget(QLabel("Festplattengröße (GB):"))
+        self.vhdx_size_input = QSpinBox()
+        self.vhdx_size_input.setMinimum(10)
+        self.vhdx_size_input.setMaximum(2000)
+        self.vhdx_size_input.setValue(60)
+        vhdx_layout.addWidget(self.vhdx_size_input)
+        vhdx_layout.addStretch()
+        vm_layout.addLayout(vhdx_layout)
+        
+        # ISO-Image
+        iso_layout = QHBoxLayout()
+        iso_layout.addWidget(QLabel("ISO-Image:"))
+        self.iso_input = QLineEdit()
+        iso_layout.addWidget(self.iso_input)
+        browse_iso_btn = QPushButton("Durchsuchen")
+        browse_iso_btn.clicked.connect(self.browse_iso)
+        iso_layout.addWidget(browse_iso_btn)
+        vm_layout.addLayout(iso_layout)
+        
+        # VM automatisch starten
+        self.auto_start_checkbox = QCheckBox("VM nach Erstellung automatisch starten")
+        self.auto_start_checkbox.setChecked(True)
+        vm_layout.addWidget(self.auto_start_checkbox)
+        
+        vm_group.setLayout(vm_layout)
+        layout.addWidget(vm_group)
+        
+        # Erstellen-Button
+        create_btn = QPushButton("VM Erstellen")
+        create_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; padding: 10px; font-weight: bold; }")
+        create_btn.clicked.connect(self.create_vm)
+        layout.addWidget(create_btn)
+        
+        layout.addStretch()
+        self.tabs.addTab(tab, "1. VM Erstellen")
+    
+    def create_post_install_tab(self):
+        """Tab für Post-Installation"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # VM-Auswahl
+        vm_select_layout = QHBoxLayout()
+        vm_select_layout.addWidget(QLabel("VM auswählen:"))
+        self.vm_select_combo = QComboBox()
+        vm_select_layout.addWidget(self.vm_select_combo)
+        refresh_btn = QPushButton("Aktualisieren")
+        refresh_btn.clicked.connect(self.refresh_vm_list)
+        vm_select_layout.addWidget(refresh_btn)
+        layout.addLayout(vm_select_layout)
+        
+        # Benutzer-Konfiguration
+        user_group = QGroupBox("Benutzer-Konfiguration")
+        user_layout = QVBoxLayout()
+        
+        self.enable_admin_checkbox = QCheckBox("Administrator-Account freischalten")
+        user_layout.addWidget(self.enable_admin_checkbox)
+        
+        # Neuer Benutzer
+        new_user_layout = QVBoxLayout()
+        new_user_layout.addWidget(QLabel("Neuen Benutzer anlegen:"))
+        
+        username_layout = QHBoxLayout()
+        username_layout.addWidget(QLabel("Benutzername:"))
+        self.new_username_input = QLineEdit()
+        username_layout.addWidget(self.new_username_input)
+        new_user_layout.addLayout(username_layout)
+        
+        password_layout = QHBoxLayout()
+        password_layout.addWidget(QLabel("Passwort:"))
+        self.new_password_input = QLineEdit()
+        self.new_password_input.setEchoMode(QLineEdit.Password)
+        password_layout.addWidget(self.new_password_input)
+        new_user_layout.addLayout(password_layout)
+        
+        user_layout.addLayout(new_user_layout)
+        user_group.setLayout(user_layout)
+        layout.addWidget(user_group)
+        
+        # Netzwerk-Konfiguration
+        network_group = QGroupBox("Netzwerk-Konfiguration")
+        network_layout = QVBoxLayout()
+        
+        self.enable_rdp_checkbox = QCheckBox("Remote Desktop aktivieren")
+        self.enable_rdp_checkbox.setChecked(True)
+        network_layout.addWidget(self.enable_rdp_checkbox)
+        
+        self.static_ip_checkbox = QCheckBox("Feste IP-Adresse konfigurieren")
+        network_layout.addWidget(self.static_ip_checkbox)
+        
+        ip_layout = QHBoxLayout()
+        ip_layout.addWidget(QLabel("IP-Adresse:"))
+        self.ip_input = QLineEdit()
+        self.ip_input.setPlaceholderText("z.B. 192.168.1.100")
+        ip_layout.addWidget(self.ip_input)
+        network_layout.addLayout(ip_layout)
+        
+        gateway_layout = QHBoxLayout()
+        gateway_layout.addWidget(QLabel("Gateway:"))
+        self.gateway_input = QLineEdit()
+        self.gateway_input.setPlaceholderText("z.B. 192.168.1.1")
+        gateway_layout.addWidget(self.gateway_input)
+        network_layout.addLayout(gateway_layout)
+        
+        dns_layout = QHBoxLayout()
+        dns_layout.addWidget(QLabel("DNS-Server:"))
+        self.dns_input = QLineEdit()
+        self.dns_input.setPlaceholderText("z.B. 8.8.8.8")
+        dns_layout.addWidget(self.dns_input)
+        network_layout.addLayout(dns_layout)
+        
+        network_group.setLayout(network_layout)
+        layout.addWidget(network_group)
+        
+        # Konfigurieren-Button
+        config_btn = QPushButton("Post-Installation durchführen")
+        config_btn.setStyleSheet("QPushButton { background-color: #2196F3; color: white; padding: 10px; font-weight: bold; }")
+        config_btn.clicked.connect(self.post_install_config)
+        layout.addWidget(config_btn)
+        
+        # AD-Installation (nur für Server)
+        ad_install_btn = QPushButton("Active Directory installieren (Server 2025)")
+        ad_install_btn.setStyleSheet("QPushButton { background-color: #FF9800; color: white; padding: 10px; font-weight: bold; }")
+        ad_install_btn.clicked.connect(self.install_ad)
+        layout.addWidget(ad_install_btn)
+        
+        layout.addStretch()
+        self.tabs.addTab(tab, "2. Post-Installation")
+    
+    def create_ad_users_tab(self):
+        """Tab für AD-Benutzerverwaltung"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Einzelner Benutzer
+        single_user_group = QGroupBox("Einzelnen Benutzer erstellen")
+        single_layout = QVBoxLayout()
+        
+        firstname_layout = QHBoxLayout()
+        firstname_layout.addWidget(QLabel("Vorname:"))
+        self.ad_firstname_input = QLineEdit()
+        firstname_layout.addWidget(self.ad_firstname_input)
+        single_layout.addLayout(firstname_layout)
+        
+        lastname_layout = QHBoxLayout()
+        lastname_layout.addWidget(QLabel("Nachname:"))
+        self.ad_lastname_input = QLineEdit()
+        lastname_layout.addWidget(self.ad_lastname_input)
+        single_layout.addLayout(lastname_layout)
+        
+        login_layout = QHBoxLayout()
+        login_layout.addWidget(QLabel("Login:"))
+        self.ad_login_input = QLineEdit()
+        login_layout.addWidget(self.ad_login_input)
+        single_layout.addLayout(login_layout)
+        
+        ad_password_layout = QHBoxLayout()
+        ad_password_layout.addWidget(QLabel("Passwort:"))
+        self.ad_password_input = QLineEdit()
+        self.ad_password_input.setEchoMode(QLineEdit.Password)
+        ad_password_layout.addWidget(self.ad_password_input)
+        single_layout.addLayout(ad_password_layout)
+        
+        self.password_never_expires_checkbox = QCheckBox("Passwort läuft nie ab")
+        self.password_never_expires_checkbox.setChecked(True)
+        single_layout.addWidget(self.password_never_expires_checkbox)
+        
+        create_user_btn = QPushButton("Benutzer erstellen")
+        create_user_btn.clicked.connect(self.create_ad_user)
+        single_layout.addWidget(create_user_btn)
+        
+        single_user_group.setLayout(single_layout)
+        layout.addWidget(single_user_group)
+        
+        # Excel-Import
+        excel_group = QGroupBox("Benutzer aus Excel importieren")
+        excel_layout = QVBoxLayout()
+        
+        excel_info = QLabel("Excel-Format: Vorname | Nachname | Login | Passwort")
+        excel_info.setStyleSheet("color: #666; font-style: italic;")
+        excel_layout.addWidget(excel_info)
+        
+        excel_file_layout = QHBoxLayout()
+        self.excel_path_input = QLineEdit()
+        excel_file_layout.addWidget(self.excel_path_input)
+        browse_excel_btn = QPushButton("Durchsuchen")
+        browse_excel_btn.clicked.connect(self.browse_excel)
+        excel_file_layout.addWidget(browse_excel_btn)
+        excel_layout.addLayout(excel_file_layout)
+        
+        import_btn = QPushButton("Benutzer importieren")
+        import_btn.clicked.connect(self.import_users_from_excel)
+        excel_layout.addWidget(import_btn)
+        
+        excel_group.setLayout(excel_layout)
+        layout.addWidget(excel_group)
+        
+        layout.addStretch()
+        self.tabs.addTab(tab, "3. AD-Benutzer")
+    
+    def create_ad_ou_tab(self):
+        """Tab für Organisationseinheiten"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        ou_group = QGroupBox("Organisationseinheit erstellen")
+        ou_layout = QVBoxLayout()
+        
+        ou_name_layout = QHBoxLayout()
+        ou_name_layout.addWidget(QLabel("OU-Name:"))
+        self.ou_name_input = QLineEdit()
+        ou_name_layout.addWidget(self.ou_name_input)
+        ou_layout.addLayout(ou_name_layout)
+        
+        ou_path_layout = QHBoxLayout()
+        ou_path_layout.addWidget(QLabel("Übergeordnete OU:"))
+        self.ou_path_input = QLineEdit()
+        self.ou_path_input.setPlaceholderText("z.B. DC=domain,DC=local (leer für Root)")
+        ou_path_layout.addWidget(self.ou_path_input)
+        ou_layout.addLayout(ou_path_layout)
+        
+        create_ou_btn = QPushButton("OU erstellen")
+        create_ou_btn.clicked.connect(self.create_ou)
+        ou_layout.addWidget(create_ou_btn)
+        
+        ou_group.setLayout(ou_layout)
+        layout.addWidget(ou_group)
+        
+        layout.addStretch()
+        self.tabs.addTab(tab, "4. AD-OUs")
+    
+    def create_ad_groups_tab(self):
+        """Tab für AD-Gruppen"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Gruppe erstellen
+        group_create_group = QGroupBox("Neue Gruppe erstellen")
+        group_create_layout = QVBoxLayout()
+        
+        group_name_layout = QHBoxLayout()
+        group_name_layout.addWidget(QLabel("Gruppenname:"))
+        self.group_name_input = QLineEdit()
+        group_name_layout.addWidget(self.group_name_input)
+        group_create_layout.addLayout(group_name_layout)
+        
+        group_scope_layout = QHBoxLayout()
+        group_scope_layout.addWidget(QLabel("Bereich:"))
+        self.group_scope_combo = QComboBox()
+        self.group_scope_combo.addItems(["Global", "DomainLocal", "Universal"])
+        group_scope_layout.addWidget(self.group_scope_combo)
+        group_create_layout.addLayout(group_scope_layout)
+        
+        create_group_btn = QPushButton("Gruppe erstellen")
+        create_group_btn.clicked.connect(self.create_ad_group)
+        group_create_layout.addWidget(create_group_btn)
+        
+        group_create_group.setLayout(group_create_layout)
+        layout.addWidget(group_create_group)
+        
+        # Benutzer zu Gruppe hinzufügen
+        add_to_group_group = QGroupBox("Benutzer zu Gruppe hinzufügen")
+        add_to_group_layout = QVBoxLayout()
+        
+        user_to_add_layout = QHBoxLayout()
+        user_to_add_layout.addWidget(QLabel("Benutzername:"))
+        self.user_to_add_input = QLineEdit()
+        user_to_add_layout.addWidget(self.user_to_add_input)
+        add_to_group_layout.addLayout(user_to_add_layout)
+        
+        group_to_add_layout = QHBoxLayout()
+        group_to_add_layout.addWidget(QLabel("Gruppenname:"))
+        self.group_to_add_input = QLineEdit()
+        group_to_add_layout.addWidget(self.group_to_add_input)
+        add_to_group_layout.addLayout(group_to_add_layout)
+        
+        add_to_group_btn = QPushButton("Benutzer hinzufügen")
+        add_to_group_btn.clicked.connect(self.add_user_to_group)
+        add_to_group_layout.addWidget(add_to_group_btn)
+        
+        add_to_group_group.setLayout(add_to_group_layout)
+        layout.addWidget(add_to_group_group)
+        
+        layout.addStretch()
+        self.tabs.addTab(tab, "5. AD-Gruppen")
+    
+    # Hilfsfunktionen
+    def browse_vm_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Speicherort auswählen")
+        if path:
+            self.path_input.setText(path)
+    
+    def browse_iso(self):
+        path, _ = QFileDialog.getOpenFileName(self, "ISO-Image auswählen", "", "ISO Files (*.iso)")
+        if path:
+            self.iso_input.setText(path)
+    
+    def browse_excel(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Excel-Datei auswählen", "", "Excel Files (*.xlsx *.xls)")
+        if path:
+            self.excel_path_input.setText(path)
+    
+    def log_output(self, message):
+        self.status_text.append(message)
+    
+    def refresh_vm_list(self):
+        script = "Get-VM | Select-Object -ExpandProperty Name"
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(lambda output: self.populate_vm_combo(output))
+        worker.error_signal.connect(self.log_output)
+        worker.start()
+    
+    def populate_vm_combo(self, output):
+        self.vm_select_combo.clear()
+        vms = [vm.strip() for vm in output.strip().split('\n') if vm.strip()]
+        self.vm_select_combo.addItems(vms)
+    
+    # VM-Erstellung
+    def create_vm(self):
+        vm_name = self.vm_name_input.text().strip()
+        if not vm_name:
+            QMessageBox.warning(self, "Fehler", "Bitte VM-Name eingeben!")
+            return
+        
+        self.vm_name = vm_name
+        ram_gb = self.ram_input.value()
+        path = self.path_input.text()
+        vhdx_size = self.vhdx_size_input.value()
+        iso_path = self.iso_input.text()
+        
+        script = f"""
+# Hyper-V-Dienst prüfen und starten
+$service = Get-Service -Name vmms
+if ($service.Status -ne 'Running') {{
+    Start-Service -Name vmms
+    Write-Output "Hyper-V-Dienst wurde gestartet."
+}}
+
+# VM erstellen
+$VMPath = '{path}'
+$VMName = '{vm_name}'
+$RAM = {ram_gb}GB
+$VHDXSize = {vhdx_size}GB
+
+# Verzeichnis erstellen
+New-Item -ItemType Directory -Force -Path $VMPath | Out-Null
+
+# VM erstellen
+New-VM -Name $VMName -MemoryStartupBytes $RAM -Path $VMPath -Generation 2
+Write-Output "VM '$VMName' wurde erstellt."
+
+# VHDX erstellen
+$VHDXPath = Join-Path $VMPath "$VMName\\$VMName.vhdx"
+New-VHD -Path $VHDXPath -SizeBytes $VHDXSize -Dynamic
+Add-VMHardDiskDrive -VMName $VMName -Path $VHDXPath
+Write-Output "Virtuelle Festplatte erstellt: $VHDXPath"
+"""
+        
+        if iso_path:
+            script += f"""
+# ISO einbinden
+Add-VMDvdDrive -VMName $VMName -Path '{iso_path}'
+Set-VMFirmware -VMName $VMName -FirstBootDevice (Get-VMDvdDrive -VMName $VMName)
+Write-Output "ISO eingebunden: {iso_path}"
+"""
+        
+        if self.auto_start_checkbox.isChecked():
+            script += f"""
+# VM starten
+Start-VM -Name $VMName
+Write-Output "VM wurde gestartet."
+"""
+        
+        self.log_output(f"Erstelle VM '{vm_name}'...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ VM-Erstellung abgeschlossen!" if success else "✗ VM-Erstellung fehlgeschlagen!"))
+        worker.start()
+    
+    # Post-Installation
+    def post_install_config(self):
+        vm_name = self.vm_select_combo.currentText()
+        if not vm_name:
+            QMessageBox.warning(self, "Fehler", "Bitte VM auswählen!")
+            return
+        
+        script = f"$VMName = '{vm_name}'\n"
+        
+        # Remote-Befehle an die VM
+        commands = []
+        
+        if self.enable_admin_checkbox.isChecked():
+            commands.append("net user Administrator /active:yes")
+        
+        if self.new_username_input.text().strip():
+            username = self.new_username_input.text().strip()
+            password = self.new_password_input.text().strip()
+            commands.append(f"net user {username} {password} /add")
+            commands.append(f"net localgroup Administrators {username} /add")
+        
+        if self.enable_rdp_checkbox.isChecked():
+            commands.append("Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server' -Name 'fDenyTSConnections' -Value 0")
+            commands.append("Enable-NetFirewallRule -DisplayGroup 'Remote Desktop'")
+        
+        if self.static_ip_checkbox.isChecked() and self.ip_input.text().strip():
+            ip = self.ip_input.text().strip()
+            gateway = self.gateway_input.text().strip()
+            dns = self.dns_input.text().strip()
+            commands.append(f"New-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress {ip} -PrefixLength 24 -DefaultGateway {gateway}")
+            if dns:
+                commands.append(f"Set-DnsClientServerAddress -InterfaceAlias 'Ethernet' -ServerAddresses {dns}")
+        
+        if commands:
+            script += "Invoke-Command -VMName $VMName -ScriptBlock {\n"
+            script += "\n".join(commands)
+            script += "\n}"
+        
+        self.log_output("Führe Post-Installation durch...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ Post-Installation abgeschlossen!" if success else "✗ Post-Installation fehlgeschlagen!"))
+        worker.start()
+    
+    # Active Directory Installation
+    def install_ad(self):
+        vm_name = self.vm_select_combo.currentText()
+        if not vm_name:
+            QMessageBox.warning(self, "Fehler", "Bitte VM auswählen!")
+            return
+        
+        domain_name, ok = QMessageBox.getText(self, "Domain-Name", "Bitte Domain-Namen eingeben (z.B. example.local):")
+        if not ok or not domain_name:
+            return
+        
+        script = f"""
+Invoke-Command -VMName '{vm_name}' -ScriptBlock {{
+    # AD DS installieren
+    Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+    
+    # Domain Controller promoten
+    $SafeModePassword = ConvertTo-SecureString 'P@ssw0rd123!' -AsPlainText -Force
+    Install-ADDSForest -DomainName '{domain_name}' -SafeModeAdministratorPassword $SafeModePassword -Force
+    
+    Write-Output "Active Directory wurde installiert. System wird neu gestartet..."
+}}
+"""
+        
+        self.log_output("Installiere Active Directory...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ AD-Installation gestartet! VM wird neu gestartet." if success else "✗ AD-Installation fehlgeschlagen!"))
+        worker.start()
+    
+    # AD-Benutzer erstellen
+    def create_ad_user(self):
+        firstname = self.ad_firstname_input.text().strip()
+        lastname = self.ad_lastname_input.text().strip()
+        login = self.ad_login_input.text().strip()
+        password = self.ad_password_input.text().strip()
+        
+        if not all([firstname, lastname, login, password]):
+            QMessageBox.warning(self, "Fehler", "Bitte alle Felder ausfüllen!")
+            return
+        
+        never_expires = "-PasswordNeverExpires $true" if self.password_never_expires_checkbox.isChecked() else ""
+        
+        script = f"""
+$SecurePassword = ConvertTo-SecureString '{password}' -AsPlainText -Force
+New-ADUser -GivenName '{firstname}' -Surname '{lastname}' -Name '{firstname} {lastname}' -SamAccountName '{login}' -UserPrincipalName '{login}@domain.local' -AccountPassword $SecurePassword -Enabled $true {never_expires}
+Write-Output "Benutzer {login} wurde erstellt."
+"""
+        
+        self.log_output(f"Erstelle Benutzer {login}...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ Benutzer erstellt!" if success else "✗ Fehler beim Erstellen!"))
+        worker.start()
+    
+    # Excel-Import
+    def import_users_from_excel(self):
+        excel_path = self.excel_path_input.text().strip()
+        if not excel_path:
+            QMessageBox.warning(self, "Fehler", "Bitte Excel-Datei auswählen!")
+            return
+        
+        never_expires = "$true" if self.password_never_expires_checkbox.isChecked() else "$false"
+        
+        script = f"""
+# Excel einlesen (benötigt ImportExcel Modul)
+if (-not (Get-Module -ListAvailable -Name ImportExcel)) {{
+    Install-Module -Name ImportExcel -Force -Scope CurrentUser
+}}
+Import-Module ImportExcel
+
+$users = Import-Excel -Path '{excel_path}'
+foreach ($user in $users) {{
+    $SecurePassword = ConvertTo-SecureString $user.Passwort -AsPlainText -Force
+    $params = @{{
+        GivenName = $user.Vorname
+        Surname = $user.Nachname
+        Name = "$($user.Vorname) $($user.Nachname)"
+        SamAccountName = $user.Login
+        UserPrincipalName = "$($user.Login)@domain.local"
+        AccountPassword = $SecurePassword
+        Enabled = $true
+    }}
+    if ({never_expires}) {{
+        $params['PasswordNeverExpires'] = $true
+    }}
+    New-ADUser @params
+    Write-Output "Benutzer $($user.Login) erstellt."
+}}
+"""
+        
+        self.log_output("Importiere Benutzer aus Excel...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ Benutzer importiert!" if success else "✗ Import fehlgeschlagen!"))
+        worker.start()
+    
+    # OU erstellen
+    def create_ou(self):
+        ou_name = self.ou_name_input.text().strip()
+        if not ou_name:
+            QMessageBox.warning(self, "Fehler", "Bitte OU-Name eingeben!")
+            return
+        
+        ou_path = self.ou_path_input.text().strip()
+        if not ou_path:
+            # Wenn kein Pfad angegeben, Domain ermitteln
+            script = f"""
+$domain = (Get-ADDomain).DistinguishedName
+New-ADOrganizationalUnit -Name '{ou_name}' -Path $domain
+Write-Output "OU '{ou_name}' wurde erstellt."
+"""
+        else:
+            script = f"""
+New-ADOrganizationalUnit -Name '{ou_name}' -Path '{ou_path}'
+Write-Output "OU '{ou_name}' wurde erstellt."
+"""
+        
+        self.log_output(f"Erstelle OU '{ou_name}'...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ OU erstellt!" if success else "✗ Fehler beim Erstellen!"))
+        worker.start()
+    
+    # AD-Gruppe erstellen
+    def create_ad_group(self):
+        group_name = self.group_name_input.text().strip()
+        if not group_name:
+            QMessageBox.warning(self, "Fehler", "Bitte Gruppenname eingeben!")
+            return
+        
+        scope = self.group_scope_combo.currentText()
+        
+        script = f"""
+New-ADGroup -Name '{group_name}' -GroupScope {scope} -GroupCategory Security
+Write-Output "Gruppe '{group_name}' wurde erstellt."
+"""
+        
+        self.log_output(f"Erstelle Gruppe '{group_name}'...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ Gruppe erstellt!" if success else "✗ Fehler beim Erstellen!"))
+        worker.start()
+    
+    # Benutzer zu Gruppe hinzufügen
+    def add_user_to_group(self):
+        username = self.user_to_add_input.text().strip()
+        groupname = self.group_to_add_input.text().strip()
+        
+        if not all([username, groupname]):
+            QMessageBox.warning(self, "Fehler", "Bitte Benutzername und Gruppenname eingeben!")
+            return
+        
+        script = f"""
+Add-ADGroupMember -Identity '{groupname}' -Members '{username}'
+Write-Output "Benutzer '{username}' wurde zu Gruppe '{groupname}' hinzugefügt."
+"""
+        
+        self.log_output(f"Füge Benutzer '{username}' zu Gruppe '{groupname}' hinzu...")
+        worker = PowerShellWorker(script)
+        worker.output_signal.connect(self.log_output)
+        worker.error_signal.connect(lambda err: self.log_output(f"FEHLER: {err}"))
+        worker.finished_signal.connect(lambda success: self.log_output("✓ Benutzer hinzugefügt!" if success else "✗ Fehler beim Hinzufügen!"))
+        worker.start()
+
+
+def main():
+    app = QApplication(sys.argv)
+    
+    # Style anwenden
+    app.setStyle('Fusion')
+    
+    window = HyperVManager()
+    window.show()
+    
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
